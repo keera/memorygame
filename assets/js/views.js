@@ -1,0 +1,409 @@
+fb.views.Shell = Backbone.View.extend({
+
+  initialize : function() {
+    this.template = _.template(fb.templateLoader.get('shell'));
+    this.model.bind('add', this.render);
+    this.render();
+  },
+  
+  render : function() {
+    this.$el.html(this.template(this.model.toJSON()));
+    new fb.views.Login({
+      model : this.model,
+      el : '#login'
+    });
+    return this;
+  },
+  
+  events : {
+    'mousedown li' : 'mouseDown',
+    'mouseup li' : 'mouseUp',
+    'click .btn-login' : 'login'
+  },
+
+  mouseDown : function(e) {
+    $(e.currentTarget).addClass('active');
+  },
+  
+  mouseUp : function() {
+    $('li').removeClass('active');
+  },
+  
+  login : function() {
+    $(document).trigger('login');
+    return false;
+  }
+  
+});
+
+fb.views.Welcome = Backbone.View.extend({
+  
+  initialize : function() {
+    var self = this;
+    _.bindAll(this);
+    this.fb = fb;
+    this.template = _.template(fb.templateLoader.get('main'));
+    this.render();
+
+  },
+  
+  render : function() {
+    this.$el.html(this.template());
+    var suggestions = [
+        { value: "East River Park", data: "AE" },
+        { value: "Columbus Park",       data: "UK" },
+        { value: "McLaughlin Park",        data: "US" },
+        { value: "Tompkins Square Park",        data: "US" }
+    ];
+    var autoSettings = {
+      minChars : 1,
+      delimiter : /(,|;)\s*/,
+      maxHeight : 300,
+      width : 218,
+      lookup : suggestions
+    };
+    //debugger;
+
+    $(this.$el).find("#time").timepicker();
+    $(this.$el).find('#query').autocomplete(autoSettings);
+    //update for omnisearch
+    /*autoSettings.width = 302;
+    autoSettings.appendTo = $(this.$el).find('#suggestions');
+    autoSettings.serviceUrl = "/any";
+    $(this.$el).find('#prof-search').autocomplete(autoSettings);
+    $(this.$el).find('#prof-search').tooltip({placement:"right"});
+    $(this.$el).find('#endorse').tooltip();
+    $(this.$el).find('#condemn').tooltip();*/
+    return this;
+  },
+  
+  events : {
+    'click #endorse' : 'endorse',
+    'click #condemn' : 'condemn',
+    'click #submitEndorse' : 'postEndorse',
+    'click #submitCondemn' : 'postCondemn',
+    'keypress #prof-search' : 'profSearch'
+  },
+
+  endorse : function() {
+    if(window.activeSession.isAuthorized()) {
+      $('#endorseModal').modal('show');
+    } else {
+      var config = {
+        before : null,
+        after : function() {
+          $('#endorseModal').modal('show');
+        }
+      };
+      window.activeSession.login(config);
+    }
+  },
+  
+  condemn : function() {
+     if(window.activeSession.isAuthorized()) {
+      $('#condemnModal').modal('show');
+    } else {
+      var config = {
+        before : null,
+        after : function() {
+          $('#condemnModal').modal('show');
+        }
+      };
+      window.activeSession.login(config);
+    }
+  },
+
+  profSearch : function(e) {
+    if(e.keyCode != 13)
+      return;
+    var search = $("#prof-search").val();
+    var pc = new this.fb.models.ProfCollection();
+    callBack = function(collection, response, options) {
+      try {
+        $('#content').html(new this.fb.views.Profs({
+          id: search,
+          model : collection
+        }).el);
+      } catch (e) {
+        this.showErrorPage();
+      }
+    };
+    pc.fetch({
+      data : {
+        query : search
+      },
+      success : callBack
+    });
+  },
+
+  isEmpty: function(obj, id, msg) {
+    if(obj.length < 1) {
+      $(id + " span").remove('.help-inline');
+      $(id + " .controls").append(msg);
+      $(id).addClass("error");
+      return false;
+    } else {
+      $(id + " span").remove('.help-inline');
+      $(id).removeClass("error");
+      return true;
+    }
+  },
+  
+  validate: function(fields) {
+    return fields.indexOf(false) < 0;
+  },
+  
+  postEndorse : function() {
+    var first = $("#first-name :input").val(),
+        last = $("#last-name :input").val(), 
+        dept = $("#department :input").val(), 
+        note = $("#note :input").val(), 
+        anon = $('input:checkbox[name=endorse-checkbox]:checked').length,
+        errorHtml = '<span class="help-inline">Please enter a value</span>',
+        fields;
+
+    if(!$("#endorse-form").validate({
+        rules : {
+          "endorse-firstname" : "required",
+          "endorse-lastname" : "required",
+          "endorse-dept" : "required",
+          "endorse-review" : "required",
+        }
+      }).form())
+      return;
+
+    var data = {
+      userid : window.activeSession.id,
+      firstname : first,
+      lastname : last,
+      dept : dept,
+      endorse: 1,
+      condemn: 0,
+      note : note,
+      anon : anon
+    };
+
+    var newRating = new this.fb.models.Rating();
+    var callBack = function(model, response){
+      var html = '<div class="alert alert-success">'+
+        '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
+        'Thank you for your endorsement!' +
+        '</div>';
+      $(".navbar").append(html);
+    };
+    var error = function(mode, response){
+      alert("Post failed");
+    }
+    newRating.save(data, {success: callBack, error: error});
+    $('#endorseModal').modal('hide');
+  },
+  
+  postCondemn : function() {
+    var first = $("#first-name-c :input").val(),
+        last = $("#last-name-c :input").val(), 
+        dept = $("#department-c :input").val(), 
+        note = $("#note-c :input").val(), 
+        anon = $('input:checkbox[name=condemn-checkbox]:checked').length,
+        errorHtml = '<span class="help-inline">Please enter a value</span>',
+        fields;
+    
+    if(!$("#condemn-form").validate({
+        rules : {
+          "condemn-firstname" : "required",
+          "condemn-lastname" : "required",
+          "condemn-dept" : "required",
+          "condemn-review" : "required",
+        }
+      }).form())
+      return;
+
+    var data = {
+      userid : window.activeSession.id,
+      firstname : first,
+      lastname : last,
+      dept : dept,
+      endorse: 0,
+      condemn: 1,
+      note : note,
+      anon : anon
+    };
+
+    var newRating = new this.fb.models.Rating();
+    var callBack = function(model, response){
+      var html = '<div class="alert alert-success">'+
+        '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
+        'Thank you for your condemnation!' +
+        '</div>';
+      $(".navbar").append(html);
+    };
+    var error = function(mode, response){
+      alert("Post failed");
+    }
+    newRating.save(data, {success: callBack, error: error});
+    $('#condemnModal').modal('hide');
+  }
+  
+});
+
+//user manual login
+fb.views.Login = Backbone.View.extend({
+
+  initialize : function() {
+    this.template = _.template(fb.templateLoader.get('login'));
+    this.model.on("change", this.render, this);
+    this.render();
+  },
+  
+  render : function() {
+    this.$el.html(this.template(this.model.toJSON()));
+    return this;
+  },
+  
+  events : {
+    'click .login' : 'login',
+    'click .logout' : 'logout'
+  },
+
+  login : function(e) {
+    var config = {
+      before : null,
+      after : null
+    };
+    window.activeSession.login(config);
+    return false;
+  },
+  
+  logout : function(e) {
+    window.activeSession.logout();
+    return false;
+  }
+  
+});
+
+//error page
+fb.views.Error = Backbone.View.extend({
+
+  initialize : function() {
+    this.template = _.template(fb.templateLoader.get('error'));
+    this.render();
+  },
+  
+  render : function() {
+    this.$el.html(this.template());
+    return this;
+  },
+  
+  events : {
+    'click .retry' : 'retry'
+  },
+
+  retry : function() {
+    Backbone.history.loadUrl(Backbone.history.fragment);
+  }
+  
+});
+
+//this will serve as professor
+fb.views.Profs = Backbone.View.extend({
+  
+  initialize : function() {
+    this.fb = fb;
+    this.template = _.template(fb.templateLoader.get('profs'));
+    this.model.on("change", this.render, this);
+    this.render();
+  },
+  
+  render : function() {
+    this.$el.html(this.template({
+      "id" : this.id,
+      "data" : this.model.toJSON()
+    }));
+    $(this.$el).find('.prof-card').tooltip(
+      {
+        placement: 'right',
+        delay: {
+          show: 1500, 
+          hide: 50
+        }
+      }
+     );
+     if(this.model.length < 1) {
+       $(this.$el).find(".tab-content").html('<div class="alert">'+
+          '<strong>No results!</strong></div>');
+     };
+    return this;
+  },
+  
+  events : {
+    'click li' : 'info',
+    'click .previous' : 'previous',
+  },
+  //as we fetch, each note collection will be added to a prof model in the prof collection.
+  info : function() {
+    var prof = $(event.target).html(),
+        first = prof.split(" ")[0],
+        last = prof.split(" ")[1];
+        
+    var pc = new this.fb.models.NoteCollection(),
+    callBack = function(collection, response, options) {
+      try {
+        //insert reviews
+        $('.tab-content').html(new this.fb.views.Reviews({
+          model : collection
+        }).el);
+        //stack like bricks. why doesnt work if bounded in review?
+        $('#container').masonry({
+          itemSelector : '.item'
+        });
+        //remove loader
+        $("#loading").css("visibility", "hidden");
+      } catch (e) {
+        this.showErrorPage();
+      }
+    };
+
+    $("#loading").css("visibility","visible");
+    pc.fetch({
+      data : {
+        first: first,
+        last: last
+      },
+      success : callBack
+    });
+ 
+  },
+  
+  previous : function() {
+    $('#content').html(new this.fb.views.Welcome().el);
+  },
+  
+  fetch : function(url) {
+    var self = this;
+    $.ajax({
+      url : url,
+      dataType : "json"
+    }).done(function(response) {
+      self.model.set(response);
+    }).fail(function(e) {
+      alert('Error fetching data');
+    });
+  }
+  
+});
+
+fb.views.Reviews = Backbone.View.extend({
+
+  initialize : function() {
+    this.template = _.template(fb.templateLoader.get('reviews'));
+    this.model.on("change", this.render, this);
+    this.render();
+  },
+  
+  render : function() {
+    this.$el.html(this.template({
+      "data" : this.model.toJSON()
+    }));
+    return this;
+  }
+  
+});
