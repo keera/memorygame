@@ -1,13 +1,12 @@
 {
-  "name": "Profrank",
+  "name": "Memory Game",
   "version": "0.0.0",
-  "description": "Awesome prof review app",
-  "main": "server.js",
-  "repository": "https://github.com/keera/profrank.git",
+  "description": "Customizable memory game",
+  "main": "app.js",
+  "repository": "https://github.com/keera/memorygame.git",
   "author": "Alan Lin",
   "license": "MIT",
   "dependencies": {
-    "mongoose": "3.5.7",
     "express": "3.1.0"
   }
 }
