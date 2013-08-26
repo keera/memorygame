@@ -41,6 +41,7 @@
             this.cards = {};
             this.openCards = [];
             this.row = 2;
+            this.openLock = false;
         }
 
         Board.prototype.addCard = function(card) {
@@ -48,6 +49,9 @@
         }
 
         Board.prototype.flipCard = function(id) {
+            if(this.openLock) return;
+            console.log("Enter flip");
+            this.openLock = true;
             if (this.canOpen()) {
                 this.openCard(id); // This should be an atomic operation
             } else {
@@ -57,10 +61,12 @@
                     this.openCard(id); 
                 }
             }
+            this.openLock = false;
         }
 
         Board.prototype.openCard = function(id) {
             // Do do shit if card already opened
+            if (this.cards[id].isFlipped() || this.cards[id].isOpen()) return;
             console.log("Opening card "+ id + " with value: " + this.cards[id].id);
             this.cards[id].open();
             this.openCards.push(this.cards[id]);
@@ -106,7 +112,7 @@
 
             return false;
         }
-
+        // Arg. I can only close if everything is flipped (True)
         Board.prototype.canCloseOpenCards = function() {
             for (var i = 0; i < this.openCards.length; i++) {
                 if(!this.openCards[i].isFlipped()) return false;
@@ -150,9 +156,9 @@
             var id = 0;
             return function() { return id++; };
         })();
-
+        // You cannot just open if the others havent finished flipping
+        // OPEN, OPEN -> OPEN3, (Flipped, Flipped), OPEN2(But no flip complete).
         Card.prototype.open = function(ref) {
-            if (this.isOpen()) return;
             var _this = this;
             _this.state = CARD_STATES.OPEN;
             $("a[pos='"+ this.key + "']").flippy({
