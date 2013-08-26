@@ -2,131 +2,190 @@
 <html lang="en">
     <head>
         <meta charset="utf-8">
-        <title>Prof Rank</title>
-        <!--<meta name="viewport" content="width=device-width, initial-scale=1.0">-->
+        <title>Memory Game Demo</title>
         <meta name="viewport" content="initial-scale=1, maximum-scale=1, user-scalable=no">
-        <meta name="description" content="">
-        <meta name="author" content="">
-        <!-- Le styles -->
-        <link href="css/bootstrap.css" rel="stylesheet">
-        <link href="css/bootstrap-responsive.css" rel="stylesheet">
-        <link href="css/docs.css" rel="stylesheet">
-        <link href="css/style.css" rel="stylesheet">
-        <link href="css/timePicker.css" rel="stylesheet">
-        <!-- HTML5 shim, for IE6-8 support of HTML5 elements -->
-        <!--[if lt IE 9]>
-        <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
-        <![endif]-->
-        <script src="http://use.edgefonts.net/source-code-pro.js"></script>
-        <!-- Fav and touch icons -->
-        <link rel="apple-touch-icon-precomposed" sizes="144x144" href="../assets/ico/apple-touch-icon-144-precomposed.png">
-        <link rel="apple-touch-icon-precomposed" sizes="114x114" href="../assets/ico/apple-touch-icon-114-precomposed.png">
-        <link rel="apple-touch-icon-precomposed" sizes="72x72" href="../assets/ico/apple-touch-icon-72-precomposed.png">
-        <link rel="apple-touch-icon-precomposed" href="../assets/ico/apple-touch-icon-57-precomposed.png">
-        <link rel="shortcut icon" href="../assets/ico/favicon.png">
         <style type="text/css">
+            h1 { 
+                font-size: 16px; 
+                border-bottom: 1px solid #000;
+            }
+
             .card {
                 display:block;
                 float: left;
-                padding: 20px;
+                background-color: black;
+                width: 100px;
+                height: 150px;
                 border: 1px solid #000;
-                margin-right: 5px;
+                margin: 0px 5px 5px 0px;
+                font-size: 1.5em;
+                font-weight: bold;
+            }
+
+            .solved {
+                border: 2px solid green;
             }
         </style>
     </head>
     <body>
-        <h1>Memory Game</h1>
+        <h1>Memory Game Demo</h1>
         <div class="board"></div>
     </body>
     <script src="//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
+    <script type="text/javascript" src="js/jquery.flippy.js"></script>
     <script type="text/javascript">
         // Actual construction of board is even higher level
         // But for now well just assume single dimension
 
         function Board() {
-            this.cards = [];
+            this.cards = {};
             this.openCards = [];
             this.row = 2;
         }
 
         Board.prototype.addCard = function(card) {
-            this.cards.push(card);
+            this.cards[card.key] = card;
         }
-        Board.prototype.openCard = function(id) {
-            // Do do shit if card already opened
-            if (this.cards[id].isOpen()) return;
-            // TODO: Be more specific you noob
-            if (this.canOpen(id)) {
-                console.log("Opening card with value: " + this.cards[id].id);
-                this.cards[id].open();
-                this.openCards.push(this.cards[id]);
-                // Check if we meet row
-                if (this.numOpen() == this.row) {
-                    console.log("Opened SET. Check VALID?");
-                    if (this.checkValidRow()) {
-                        console.log("You got it!");
-                        this.closeOpenCards();
-                    } else {
-                        console.log("You fail..oh well.");
-                        this.closeOpenCards();
-                    }
-                }
+
+        Board.prototype.flipCard = function(id) {
+            if (this.canOpen()) {
+                this.openCard(id); // This should be an atomic operation
             } else {
                 console.log("Reached max, closing cards.");
-                this.closeOpenCards();
+                console.log("Num open cards: " + this.openCards.length);
+                if (this.closeOpenCards()) {
+                    this.openCard(id); 
+                }
             }
         }
+
+        Board.prototype.openCard = function(id) {
+            // Do do shit if card already opened
+            console.log("Opening card "+ id + " with value: " + this.cards[id].id);
+            this.cards[id].open();
+            this.openCards.push(this.cards[id]);
+            // Check if we meet row
+            if (this.numOpen() == this.row) {
+                console.log("Opened SET. Check VALID?");
+                if (this.checkValidRow()) {
+                    // If correct, we keep the cards open
+                    console.log("You got it!");
+                    // Highlight
+                    this.highlightSolved();
+                    // Keep valid ones open by clearing from close stack
+                    this.openCards = [];
+                } else {
+                    console.log("You fail..oh well.");
+                }
+            }
+        }
+
         Board.prototype.closeCard = function() {
             console.log("Closing card : " + id);
             this.cards[id].close();
         }
-        Board.prototype.canOpen = function(id) {
-            return this.numOpen() < this.row && this.cards[id].isClosed();
+
+        Board.prototype.canOpen = function() {
+            return this.numOpen() < this.row;
         }
+
         Board.prototype.numOpen = function() {
             return this.openCards.length;
         }
+
         Board.prototype.closeOpenCards = function() {
-            for(var i = 0; i < this.openCards.length; i++) {
-                this.openCards[i].close();
+            // They MUST all be open, which is dictated by UI
+            if (this.canCloseOpenCards()) {
+                for (var i = 0; i < this.openCards.length; i++) {
+                    // If not done opening
+                    this.openCards[i].close();
+                }
+                this.openCards = [];
+                return true;
             }
-            this.openCards = [];
+
+            return false;
         }
+
+        Board.prototype.canCloseOpenCards = function() {
+            for (var i = 0; i < this.openCards.length; i++) {
+                if(!this.openCards[i].isFlipped()) return false;
+            }
+            return true;
+        }
+
         Board.prototype.checkValidRow = function() {
             var id = null;
             var sum = 0;
-            for(var i = 0; i < this.openCards.length; i++) {
+            for (var i = 0; i < this.openCards.length; i++) {
                 if (!id) { 
                     id = this.openCards[i].id;
                 }
                 sum += this.openCards[i].id;
             }
+
             return (sum / this.row) == id;
         }
+
+        Board.prototype.highlightSolved = function() {
+            for (var i = 0; i < this.openCards.length; i++) {
+                $("a[pos='"+ this.openCards[i].key + "']").addClass('solved');
+            }
+        }
+
         Board.prototype.checkWin = function() {
             return;
         }
 
         var CARD_STATES = {OPEN: 1, CLOSED: 0};
-        function Card(id) {
+
+        function Card(key,id) {
             this.id = id; // Identity value
+            this.flipped = false;
             this.state = CARD_STATES.CLOSED; // Closed by default
+            this.key = key;
         }
 
-        Card.prototype.open = function() {
-            this.state = CARD_STATES.OPEN;
+        var uniqueID = (function() {
+            var id = 0;
+            return function() { return id++; };
+        })();
+
+        Card.prototype.open = function(ref) {
+            if (this.isOpen()) return;
+            var _this = this;
+            _this.state = CARD_STATES.OPEN;
+            $("a[pos='"+ this.key + "']").flippy({
+                verso: this.id,
+                direction:"TOP",
+                onFinish: function() { _this.flipped = true;},
+                duration:"1000",
+            });
         }
 
         Card.prototype.isOpen = function() {
             return this.state == CARD_STATES.OPEN;
         }
 
+        Card.prototype.isFlipped = function() {
+            return this.flipped;
+        }
+
+
         Card.prototype.isClosed = function() {
             return this.state == CARD_STATES.CLOSED;
         }
 
         Card.prototype.close = function() {
-            this.state = CARD_STATES.CLOSED;
+            var _this = this;
+            _this.state = CARD_STATES.CLOSED;
+            $("a[pos='"+ this.key + "']").flippy({
+                color_target: 'black',
+                verso: "",
+                direction:"BOTTOM",
+                onFinish: function() { _this.flipped = false; },
+                duration:"1000",
+            });
         }
 
         Card.prototype.isOpen = function() {
@@ -138,12 +197,12 @@
         }
         // How to create private properties?
         // Add 6 cards to the board and then print them
-        var card1 = new Card(1);
-        var card2 = new Card(2);
-        var card3 = new Card(3);
-        var card4 = new Card(1);
-        var card5 = new Card(2);
-        var card6 = new Card(3);
+        var card1 = new Card(uniqueID(),1);
+        var card2 = new Card(uniqueID(),2);
+        var card3 = new Card(uniqueID(),3);
+        var card4 = new Card(uniqueID(),1);
+        var card5 = new Card(uniqueID(),2);
+        var card6 = new Card(uniqueID(),3);
         // Create board
         var board = new Board();
 
@@ -153,21 +212,16 @@
         board.addCard(card4);
         board.addCard(card5);
         board.addCard(card6);
+
         // Print 
-        for (var i = 0; i < board.cards.length; i ++ ){
-            $('.board').append("<a href='#' class='card' pos='" +  i + "'>" + board.cards[i].id + "</a>");
+        for (var i in board.cards) {
+            $('.board').append("<a href='#' class='card' pos='" +  board.cards[i].key + "'></a>");
         }
+
         // Attach listeners
         $('.card').click(function(e) {
-            board.openCard($(this).attr('pos'));
+            board.flipCard($(this).attr('pos'));
         }); 
-    </script>
-    <script>
-      (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
-      (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
-      m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
-      })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
-      ga('create', 'UA-40894643-1', 'bcprofs.com');
-      ga('send', 'pageview');
+
     </script>
 </html>
